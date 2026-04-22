@@ -1,0 +1,30 @@
+menuconfig ZMK_BATTERY_MONITOR_HID
+    bool "Per-peripheral battery reporting over a secondary USB HID interface"
+    depends on ZMK_SPLIT && ZMK_SPLIT_ROLE_CENTRAL && ZMK_USB
+    default n
+    help
+      When enabled, adds a vendor-defined USB HID interface that reports
+      each split peripheral's battery state-of-charge to the host. Pairs
+      with the zmk-battery-monitor companion app on macOS.
+
+      Requires CONFIG_USB_HID_DEVICE_COUNT>=2.
+
+if ZMK_BATTERY_MONITOR_HID
+
+config ZMK_BATTERY_MONITOR_HID_HEARTBEAT_SEC
+    int "Heartbeat interval in seconds"
+    default 60
+    help
+      Interval at which the firmware resends the current battery report
+      even when no values have changed. Keeps the host informed that
+      the dongle is alive. Does not generate any BLE traffic to the
+      peripherals, so does not affect their sleep behavior.
+
+module = ZMK_BATTERY_MONITOR_HID
+module-str = ZMK_BATTERY_MONITOR_HID
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif # ZMK_BATTERY_MONITOR_HID
+
+config USB_HID_DEVICE_COUNT
+    default 2 if ZMK_BATTERY_MONITOR_HID
