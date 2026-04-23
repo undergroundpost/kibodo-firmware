@@ -18,8 +18,12 @@
 #define ZMK_BM_SIDE_LABEL_UUID_VAL                                                                 \
     BT_UUID_128_ENCODE(0x6d0e0002, 0x8b4e, 0x4e8a, 0x8e7d, 0x9a5e9b8c7d6e)
 
+#define ZMK_BM_CHARGING_UUID_VAL                                                                   \
+    BT_UUID_128_ENCODE(0x6d0e0003, 0x8b4e, 0x4e8a, 0x8e7d, 0x9a5e9b8c7d6e)
+
 #define ZMK_BM_SERVICE_UUID    BT_UUID_DECLARE_128(ZMK_BM_SERVICE_UUID_VAL)
 #define ZMK_BM_SIDE_LABEL_UUID BT_UUID_DECLARE_128(ZMK_BM_SIDE_LABEL_UUID_VAL)
+#define ZMK_BM_CHARGING_UUID   BT_UUID_DECLARE_128(ZMK_BM_CHARGING_UUID_VAL)
 
 /*
  * HID Report ID 2: metadata per peripheral. 32 bytes, always that size so the
