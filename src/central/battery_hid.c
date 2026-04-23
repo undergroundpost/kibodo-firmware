@@ -114,7 +114,7 @@ static int push_metadata_report(int slot) {
         return -EINVAL;
     }
     const struct peripheral_metadata *meta = zmk_bm_get_peripheral_metadata(slot);
-    if (!meta) {
+    if (!meta || !meta->has_label) {
         return -ENODEV;
     }
 
@@ -123,18 +123,8 @@ static int push_metadata_report(int slot) {
     report[0] = ZMK_BM_METADATA_REPORT_ID;
     report[1] = (uint8_t)slot;
 
-    uint8_t flags = 0;
-    if (meta->charging) flags |= ZMK_BM_METADATA_FLAG_CHARGING;
-    if (meta->voltage_valid) flags |= ZMK_BM_METADATA_FLAG_VOLTAGE_VALID;
-    report[2] = flags;
-
-    report[3] = (uint8_t)(meta->voltage_mv & 0xFF);
-    report[4] = (uint8_t)((meta->voltage_mv >> 8) & 0xFF);
-
-    if (meta->has_label) {
-        size_t copy = strnlen(meta->label, ZMK_BM_METADATA_LABEL_MAX - 1);
-        memcpy(&report[1 + ZMK_BM_METADATA_LABEL_OFFSET], meta->label, copy);
-    }
+    size_t copy = strnlen(meta->label, ZMK_BM_METADATA_LABEL_MAX - 1);
+    memcpy(&report[1 + ZMK_BM_METADATA_LABEL_OFFSET], meta->label, copy);
     /* Remainder already zeroed. */
 
     return write_report(report, sizeof(report));

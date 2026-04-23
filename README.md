@@ -89,20 +89,9 @@ For a 2-peripheral split: `[0x01, left_pct, right_pct]` (3 bytes total).
 - Usage Page: `0xFF00`, Usage `0x03`, Report ID `0x02`
 - Payload:
   - byte 0: peripheral index
-  - byte 1: flags (bit 0: charging, bit 1: voltage_valid, bits 2-7: reserved)
-  - bytes 2-3: voltage mV (LE uint16, 0 = unavailable) — reserved for future
-  - bytes 4-31: side label, UTF-8, null-terminated, zero-padded
+  - bytes 1-31: side label, UTF-8, null-terminated, zero-padded
 
-Emitted once per peripheral on label discovery + on each heartbeat + on charging state change.
-
-## Charging detection (peripheral)
-
-Charging state is reported when a half's USB power pin goes high. This requires `CONFIG_ZMK_USB=y` on the peripherals (ZMK's default for peripherals is `n` to save startup time). If USB is not enabled on a half, the charging bit stays `0` regardless of actual state.
-
-To enable, add to your per-half shield override:
-```
-CONFIG_ZMK_USB=y
-```
+Emitted once per peripheral when the label is read over BLE, and on each heartbeat.
 
 ## Compatibility
 
