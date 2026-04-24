@@ -17,6 +17,11 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
 
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_MONITOR_LAYER)
+#include <zmk/keymap.h>
+#include <zmk/events/layer_state_changed.h>
+#endif
+
 #include "protocol.h"
 #include "metadata.h"
 
@@ -25,13 +30,17 @@ LOG_MODULE_REGISTER(zmk_battery_monitor_hid, CONFIG_ZMK_BATTERY_MONITOR_LOG_LEVE
 #define PERIPHERAL_COUNT CONFIG_ZMK_SPLIT_BLE_CENTRAL_PERIPHERALS
 #define PERCENT_UNKNOWN  0xFF
 
-#define BATT_REPORT_LEN  (1 + PERIPHERAL_COUNT)
-#define META_REPORT_LEN  (1 + ZMK_BM_METADATA_REPORT_SIZE)
+#define BATT_REPORT_LEN       (1 + PERIPHERAL_COUNT)
+#define META_REPORT_LEN       (1 + ZMK_BM_METADATA_REPORT_SIZE)
+#define LAYER_REPORT_LEN      (1 + 1)
+#define LAYER_NAME_REPORT_LEN (1 + ZMK_BM_LAYER_NAME_REPORT_SIZE)
 
 /*
- * HID descriptor: one Application Collection carrying two distinct reports.
+ * HID descriptor: one Application Collection carrying up to four reports.
  *   Report ID 1: battery levels (1 byte per peripheral)
- *   Report ID 2: metadata (32 bytes fixed, first byte is peripheral index)
+ *   Report ID 2: peripheral metadata (32 bytes, first byte is peripheral index)
+ *   Report ID 3: active layer (1 byte)                  [LAYER build only]
+ *   Report ID 4: layer metadata (32 bytes, first byte is layer index) [LAYER build only]
  */
 static const uint8_t hid_report_desc[] = {
     0x06, 0x00, 0xFF,       /* Usage Page (Vendor 0xFF00) */
@@ -47,12 +56,28 @@ static const uint8_t hid_report_desc[] = {
     0x95, PERIPHERAL_COUNT, /*   Report Count (N peripherals) */
     0x81, 0x02,             /*   Input (Data, Var, Abs) */
 
-    /* Report 2: metadata */
+    /* Report 2: peripheral metadata */
     0x85, ZMK_BM_METADATA_REPORT_ID,
     0x09, 0x03,             /*   Usage (0x03) */
     0x75, 0x08,             /*   Report Size 8 */
     0x95, ZMK_BM_METADATA_REPORT_SIZE,
     0x81, 0x02,             /*   Input (Data, Var, Abs) */
+
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_MONITOR_LAYER)
+    /* Report 3: active layer */
+    0x85, ZMK_BM_LAYER_REPORT_ID,
+    0x09, 0x04,             /*   Usage (0x04) */
+    0x75, 0x08,             /*   Report Size 8 */
+    0x95, 0x01,             /*   Report Count 1 */
+    0x81, 0x02,             /*   Input (Data, Var, Abs) */
+
+    /* Report 4: layer metadata */
+    0x85, ZMK_BM_LAYER_NAME_REPORT_ID,
+    0x09, 0x05,             /*   Usage (0x05) */
+    0x75, 0x08,             /*   Report Size 8 */
+    0x95, ZMK_BM_LAYER_NAME_REPORT_SIZE,
+    0x81, 0x02,             /*   Input (Data, Var, Abs) */
+#endif
 
     0xC0,                   /* End Collection */
 };
@@ -151,6 +176,51 @@ static int battery_listener_cb(const zmk_event_t *eh) {
 ZMK_LISTENER(zmk_battery_monitor_hid, battery_listener_cb);
 ZMK_SUBSCRIPTION(zmk_battery_monitor_hid, zmk_peripheral_battery_state_changed);
 
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_MONITOR_LAYER)
+
+/* LAYER_UNSENT forces the first push after init regardless of current state. */
+#define LAYER_UNSENT 0xFF
+static uint8_t last_sent_layer = LAYER_UNSENT;
+
+static int push_layer_report(void) {
+    uint8_t idx = zmk_keymap_highest_layer_active();
+    uint8_t report[LAYER_REPORT_LEN] = {ZMK_BM_LAYER_REPORT_ID, idx};
+    int err = write_report(report, sizeof(report));
+    if (err == 0) {
+        last_sent_layer = idx;
+    }
+    return err;
+}
+
+static int push_layer_name_report(uint8_t layer) {
+    const char *name = zmk_keymap_layer_name(layer);
+    if (name == NULL) {
+        return -ENODEV;
+    }
+    uint8_t report[LAYER_NAME_REPORT_LEN];
+    memset(report, 0, sizeof(report));
+    report[0] = ZMK_BM_LAYER_NAME_REPORT_ID;
+    report[1] = layer;
+    size_t copy = strnlen(name, ZMK_BM_LAYER_NAME_MAX - 1);
+    memcpy(&report[1 + ZMK_BM_LAYER_NAME_OFFSET], name, copy);
+    return write_report(report, sizeof(report));
+}
+
+static int layer_listener_cb(const zmk_event_t *eh) {
+    /* Dedupe: the event fires on any layer on/off, but the visible state
+     * (highest active) often doesn't change — e.g. nested momentary holds. */
+    uint8_t idx = zmk_keymap_highest_layer_active();
+    if (idx != last_sent_layer) {
+        push_layer_report();
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(zmk_battery_monitor_layer, layer_listener_cb);
+ZMK_SUBSCRIPTION(zmk_battery_monitor_layer, zmk_layer_state_changed);
+
+#endif /* CONFIG_ZMK_BATTERY_MONITOR_LAYER */
+
 static void heartbeat_handler(struct k_work *work) {
     push_battery_report();
     /* Opportunistically resend metadata we know about. Safe because
@@ -161,6 +231,12 @@ static void heartbeat_handler(struct k_work *work) {
             push_metadata_report(i);
         }
     }
+#if IS_ENABLED(CONFIG_ZMK_BATTERY_MONITOR_LAYER)
+    push_layer_report();
+    for (uint8_t i = 0; i < ZMK_KEYMAP_LAYERS_LEN; i++) {
+        push_layer_name_report(i);
+    }
+#endif
     k_work_reschedule(&heartbeat_work,
                       K_SECONDS(CONFIG_ZMK_BATTERY_MONITOR_HID_HEARTBEAT_SEC));
 }

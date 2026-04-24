@@ -50,6 +50,15 @@ config ZMK_BATTERY_MONITOR_HID_HEARTBEAT_SEC
       signal. Purely dongle→host USB traffic; does not touch BLE
       and does not prevent peripheral deep sleep.
 
+config ZMK_BATTERY_MONITOR_LAYER
+    bool "Report active layer over USB HID (central)"
+    depends on ZMK_BATTERY_MONITOR_HID
+    default y
+    help
+      On the central dongle, includes the active-layer index and layer
+      labels in the vendor HID report stream. Uses the same resolution
+      as ZMK's on-dongle layer display (highest active layer).
+
 module = ZMK_BATTERY_MONITOR
 module-str = ZMK_BATTERY_MONITOR
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
