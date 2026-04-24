@@ -18,17 +18,17 @@ config KIBODO_HID
     default y
     help
       On the central dongle, exposes a vendor-defined USB HID interface
-      carrying per-peripheral battery levels and (once enabled)
-      per-peripheral metadata (side label, charging state).
+      carrying per-peripheral battery levels, side labels, and
+      (optionally) active-layer state.
 
 config KIBODO_PERIPHERAL
-    bool "Expose per-half metadata via BLE (peripheral)"
+    bool "Expose per-half side label via BLE (peripheral)"
     depends on !ZMK_SPLIT_ROLE_CENTRAL && BT
     default y
     help
       On the split peripherals, exposes a custom GATT service with
-      side-label, charging-state, and (future) voltage characteristics.
-      The central reads these to populate richer metadata in the HID
+      a single side-label characteristic. The central reads it once
+      per connection to populate the peripheral's name in the HID
       report sent to the host.
 
 config KIBODO_SIDE_LABEL

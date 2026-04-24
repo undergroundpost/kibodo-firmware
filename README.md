@@ -1,9 +1,9 @@
 # kibodo-firmware
 
-ZMK module that bridges a split keyboard to the [Kibodo](https://github.com/undergroundpost/zmk-battery-monitor) macOS app.
+ZMK module that bridges a split keyboard to the [Kibodo](https://github.com/undergroundpost/kibodo) macOS app.
 
-- **Central (dongle):** exposes a vendor-defined USB HID interface carrying per-peripheral battery levels, metadata, and active-layer state.
-- **Peripherals (halves):** expose a custom GATT service with per-half side label.
+- **Central (dongle):** exposes a vendor-defined USB HID interface carrying per-peripheral battery levels, per-peripheral side labels, and the active layer (index + name).
+- **Peripherals (halves):** expose a single-characteristic GATT service advertising this half's side label. No other per-peripheral traffic.
 
 ## Requirements
 
@@ -63,7 +63,7 @@ If you omit the label, the app shows "Peripheral 0" / "Peripheral 1" instead.
 
 - Commit and push your config. GitHub Actions builds all firmware targets.
 - Flash the dongle **and** both halves with the updated firmware.
-- Install [Kibodo](https://github.com/undergroundpost/zmk-battery-monitor).
+- Install [Kibodo](https://github.com/undergroundpost/kibodo).
 
 ## Options
 
@@ -78,12 +78,14 @@ If you omit the label, the app shows "Peripheral 0" / "Peripheral 1" instead.
 
 ## Report format
 
-**Report ID 1 (battery levels, frequent):**
+**Report ID 1 (battery levels):**
 
 - Usage Page: `0xFF00`, Usage `0x01`, Report ID `0x01`
 - Payload: one byte per peripheral, `0-100` = state-of-charge, `0xFF` = no data yet.
 
 For a 2-peripheral split: `[0x01, left_pct, right_pct]` (3 bytes total).
+
+Emitted whenever ZMK reports a peripheral battery change, and on each heartbeat.
 
 **Report ID 2 (peripheral metadata, 32 bytes):**
 
@@ -99,12 +101,16 @@ Emitted once per peripheral when the label is read over BLE, and on each heartbe
 - Usage Page: `0xFF00`, Usage `0x04`, Report ID `0x03`
 - Payload: highest active layer index (matches ZMK's on-dongle layer display).
 
+Emitted when the resolved top layer changes, and on each heartbeat. Nested momentary layers that don't change the visible top layer are suppressed.
+
 **Report ID 4 (layer metadata, 32 bytes):**
 
 - Usage Page: `0xFF00`, Usage `0x05`, Report ID `0x04`
 - Payload:
   - byte 0: layer index
   - bytes 1-31: layer label, UTF-8, null-terminated, zero-padded
+
+Emitted on each heartbeat for every labeled layer. Unlabeled layers are skipped; the app falls back to "Layer N".
 
 ## Compatibility
 
