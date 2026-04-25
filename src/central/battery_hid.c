@@ -110,7 +110,11 @@ static int write_report(const uint8_t *buf, size_t len) {
     case USB_DC_UNKNOWN:
         return -ENODEV;
     default: {
-        int ret = k_sem_take(&hid_sem, K_MSEC(30));
+        /* Wait up to 500ms for the previous transfer's ACK rather than 30ms.
+         * Under host load (busy main thread, USB bus contention) the round-trip
+         * can spike well past 30ms, and silently dropping reports leaves the
+         * UI showing stale state until the next change OR the heartbeat. */
+        int ret = k_sem_take(&hid_sem, K_MSEC(500));
         if (ret) {
             LOG_DBG("sem take failed: %d", ret);
             return ret;
